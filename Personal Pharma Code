@@ -1,0 +1,1111 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Camera, Clock, CheckCircle, AlertTriangle, Settings, MessageSquare, Activity, User, ChevronRight, X, Plus, Calendar as CalendarIcon, ChevronLeft, Trash2, ArrowLeft, Volume2, VolumeX } from 'lucide-react';
+
+// --- HELPER FUNCTIONS ---
+const generateCalendarDays = (baseDate) => {
+  const dates = [];
+  // Show 2 days in the past, today, and 2 days in the future
+  const start = new Date(baseDate);
+  start.setDate(baseDate.getDate() - 2); 
+  
+  for (let i = 0; i < 5; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    dates.push(d);
+  }
+  return dates;
+};
+
+const isSameDay = (d1, d2) => {
+  if (!d1 || !d2) return false;
+  return d1.getDate() === d2.getDate() && 
+         d1.getMonth() === d2.getMonth() && 
+         d1.getFullYear() === d2.getFullYear();
+};
+
+const getDayName = (date, todayRef) => {
+  if (isSameDay(date, todayRef)) return 'Today';
+  const tomorrow = new Date(todayRef);
+  tomorrow.setDate(todayRef.getDate() + 1);
+  if (isSameDay(date, tomorrow)) return 'Tom';
+  const yesterday = new Date(todayRef);
+  yesterday.setDate(todayRef.getDate() - 1);
+  if (isSameDay(date, yesterday)) return 'Yest';
+  
+  return date.toLocaleDateString('en-US', { weekday: 'short' });
+};
+
+// --- SUB-COMPONENTS ---
+
+// 1. ONBOARDING SCREEN
+const Onboarding = ({ userProfile, setUserProfile, setView, speak, headingSize, textSize, buttonSize }) => (
+  <div className="flex flex-col h-full p-6 bg-slate-50">
+    <div className="flex-1 flex flex-col justify-center space-y-8 max-w-md mx-auto w-full">
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center justify-center p-4 bg-blue-100 rounded-full text-blue-600 mb-4 shadow-sm">
+          <Activity size={48} />
+        </div>
+        <h1 className={`${headingSize} font-bold text-slate-900`}>Personal Pharma</h1>
+        <p className={`${textSize} text-slate-500`}>Your personalized recovery companion.</p>
+      </div>
+      
+      <div className="space-y-6 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+        <div className="space-y-2">
+          <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">Your Name</label>
+          <input 
+            type="text" 
+            placeholder="e.g., Joy" 
+            className={`w-full bg-slate-50 border-2 border-slate-200 rounded-xl p-4 ${textSize} focus:border-blue-500 focus:outline-none transition-colors`}
+            value={userProfile.name}
+            onChange={(e) => setUserProfile(prev => ({...prev, name: e.target.value}))}
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <label className="text-sm font-bold text-slate-400 uppercase tracking-wider">Age Range</label>
+          <div className="flex gap-2">
+            {['50-60', '60-70', '70+'].map(range => (
+              <button 
+                key={range}
+                onClick={() => setUserProfile(prev => ({...prev, ageRange: range}))}
+                className={`flex-1 p-3 rounded-xl border-2 font-medium transition-all ${userProfile.ageRange === range ? 'bg-blue-600 text-white border-blue-600 shadow-md transform scale-105' : 'bg-white border-slate-200 text-slate-600'}`}
+              >
+                {range}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2">
+          <span className={`${textSize} font-medium text-slate-700`}>Read alerts out loud?</span>
+          <button 
+            onClick={() => {
+              const newPref = !userProfile.audioPref;
+              setUserProfile(prev => ({...prev, audioPref: newPref}));
+              if(newPref) speak("Audio alerts enabled.");
+            }}
+            className={`w-14 h-8 rounded-full relative transition-colors duration-300 ${userProfile.audioPref ? 'bg-green-500' : 'bg-slate-300'}`}
+          >
+            <div className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-all duration-300 ${userProfile.audioPref ? 'left-7' : 'left-1'}`} />
+          </button>
+        </div>
+      </div>
+
+      <button 
+        onClick={() => {
+          if(userProfile.name) setView('caregiver');
+          else speak("Please enter your name first.");
+        }}
+        className={`w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all ${buttonSize} flex items-center justify-center gap-2`}
+      >
+        Get Started <ChevronRight />
+      </button>
+    </div>
+  </div>
+);
+
+// 2. CAREGIVER SETUP
+const CaregiverSetup = ({ caregiver, setCaregiver, setView, headingSize, textSize, buttonSize }) => (
+  <div className="flex flex-col h-full p-6 bg-slate-50">
+    <div className="flex-1 flex flex-col justify-center space-y-6 max-w-md mx-auto w-full">
+      <div className="space-y-2">
+        <h1 className={`${headingSize} font-bold text-slate-900`}>Caregiver</h1>
+        <p className={`${textSize} text-slate-600`}>Who should we text if you miss a dose?</p>
+      </div>
+      
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-4">
+        <div className="flex items-center gap-3 text-blue-600 mb-2">
+          <User size={24} />
+          <span className="font-bold">Emergency Contact</span>
+        </div>
+        <input 
+          type="text" 
+          placeholder="Name (e.g. Sarah)" 
+          className={`w-full border-2 border-slate-200 rounded-xl p-4 ${textSize} focus:border-blue-500 outline-none`}
+          value={caregiver.name}
+          onChange={(e) => setCaregiver(prev => ({...prev, name: e.target.value}))}
+        />
+        <input 
+          type="tel" 
+          placeholder="Phone Number" 
+          className={`w-full border-2 border-slate-200 rounded-xl p-4 ${textSize} focus:border-blue-500 outline-none`}
+          value={caregiver.phone}
+          onChange={(e) => setCaregiver(prev => ({...prev, phone: e.target.value}))}
+        />
+         <input 
+          type="text" 
+          placeholder="Relationship (e.g. Daughter)" 
+          className={`w-full border-2 border-slate-200 rounded-xl p-4 ${textSize} focus:border-blue-500 outline-none`}
+          value={caregiver.relation}
+          onChange={(e) => setCaregiver(prev => ({...prev, relation: e.target.value}))}
+        />
+      </div>
+
+      <button 
+        onClick={() => setView('dashboard')}
+        className={`w-full bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 mt-4 ${buttonSize}`}
+      >
+        Save & Continue
+      </button>
+    </div>
+  </div>
+);
+
+// 3. SETTINGS SCREEN
+const SettingsView = ({ userProfile, setUserProfile, caregiver, setCaregiver, setView, headingSize, textSize, buttonSize }) => (
+  <div className="flex flex-col h-full bg-slate-50">
+    <div className="bg-white px-6 pt-12 pb-4 shadow-sm z-10 flex items-center gap-4">
+      <button onClick={() => setView('dashboard')} className="p-2 -ml-2 rounded-full hover:bg-slate-100">
+        <ArrowLeft size={24} />
+      </button>
+      <h1 className={`${headingSize} font-bold text-slate-900`}>Settings</h1>
+    </div>
+
+    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      {/* Profile Section */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">My Profile</h2>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
+          <div>
+            <label className="text-xs text-slate-500 block mb-1">Name</label>
+            <input 
+              type="text" 
+              value={userProfile.name}
+              onChange={(e) => setUserProfile(prev => ({...prev, name: e.target.value}))}
+              className="w-full p-2 border border-slate-200 rounded-lg"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {userProfile.audioPref ? <Volume2 size={20} className="text-blue-600"/> : <VolumeX size={20} className="text-slate-400"/>}
+              <span className="text-slate-700">Voice Alerts</span>
+            </div>
+            <button 
+              onClick={() => setUserProfile(prev => ({...prev, audioPref: !prev.audioPref}))}
+              className={`w-12 h-7 rounded-full relative transition-colors ${userProfile.audioPref ? 'bg-green-500' : 'bg-slate-300'}`}
+            >
+              <div className={`absolute top-1 w-5 h-5 bg-white rounded-full shadow transition-all ${userProfile.audioPref ? 'left-6' : 'left-1'}`} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* Caregiver Section */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Caregiver Details</h2>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
+           <div>
+            <label className="text-xs text-slate-500 block mb-1">Name</label>
+            <input 
+              type="text" 
+              value={caregiver.name}
+              onChange={(e) => setCaregiver(prev => ({...prev, name: e.target.value}))}
+              className="w-full p-2 border border-slate-200 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-slate-500 block mb-1">Phone</label>
+            <input 
+              type="text" 
+              value={caregiver.phone}
+              onChange={(e) => setCaregiver(prev => ({...prev, phone: e.target.value}))}
+              className="w-full p-2 border border-slate-200 rounded-lg"
+            />
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+);
+
+// 4. MAIN DASHBOARD
+const Dashboard = ({ userProfile, medications, setMedications, setView, simTime, headingSize, textSize, buttonSize }) => {
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [medToDelete, setMedToDelete] = useState(null); // State for delete modal
+
+  // Initialize selectedDate on mount
+  useEffect(() => {
+    if (!selectedDate) setSelectedDate(simTime);
+  }, []); 
+
+  // Auto-follow logic: If today rolls over to tomorrow, update view IF user was looking at today
+  useEffect(() => {
+     if (selectedDate && isSameDay(selectedDate, new Date(simTime.getTime() - 86400000))) {
+         // If selected date became "yesterday" due to clock tick, we can choose to stay or move.
+         // Feedback request: "When I click on yesterday, it jumps to today" -> Fix: Don't force update if user selected manually.
+         // Current logic: We will ONLY update if selectedDate was null.
+     }
+  }, [simTime]);
+
+  // Fallback if selectedDate is null
+  const displayDate = selectedDate || simTime;
+  const calendarDays = generateCalendarDays(simTime);
+
+  const handleMarkTaken = (medId) => {
+    const dateKey = displayDate.toDateString();
+    setMedications(prev => prev.map(m => {
+        if (m.id === medId) {
+            const isToday = isSameDay(displayDate, simTime);
+            return { 
+                ...m, 
+                status: isToday ? 'taken' : m.status,
+                history: { ...m.history, [dateKey]: 'taken' }
+            };
+        }
+        return m;
+    }));
+  };
+
+  // Logic to SKIP specific dose (hide from view for this day)
+  const handleDeleteSingle = () => {
+    if (medToDelete) {
+      const dateKey = displayDate.toDateString();
+      setMedications(prev => prev.map(m => {
+        if (m.id === medToDelete.id) {
+           return {
+             ...m,
+             skippedDates: { ...m.skippedDates, [dateKey]: true }
+           }
+        }
+        return m;
+      }));
+      setMedToDelete(null);
+    }
+  };
+
+  // Logic to STOP taking medicine (Set end date, keep history)
+  const handleDeleteAll = () => {
+    if (medToDelete) {
+      setMedications(prev => prev.map(m => {
+        // If it's a split dose (e.g. Iron AM/PM), we might want to stop both if they share name? 
+        // For simplicity, let's stop matching IDs or Names. 
+        // Based on "Stop taking THIS medicine", usually means the drug concept.
+        if (m.name === medToDelete.name) {
+           return { ...m, stoppedDate: simTime }; // Set stopped date to NOW
+        }
+        return m;
+      }));
+      setMedToDelete(null);
+    }
+  };
+
+  const getStatusIcon = (status, isFuture) => {
+    if (isFuture) return <Clock className="text-slate-400" size={20} />;
+    switch(status) {
+      case 'taken': return <CheckCircle className="text-white" size={20} />;
+      case 'missed': return <AlertTriangle className="text-white" size={20} />;
+      default: return <Clock className="text-blue-600" size={20} />;
+    }
+  };
+
+  const getStatusColor = (status, isFuture) => {
+    if (isFuture) return 'bg-slate-100 border-2 border-slate-200';
+    switch(status) {
+      case 'taken': return 'bg-green-500';
+      case 'missed': return 'bg-red-500';
+      default: return 'bg-blue-100';
+    }
+  };
+
+  // FILTER LOGIC
+  const filteredMedications = medications.filter(med => {
+    // 1. Check if stopped
+    if (med.stoppedDate) {
+       // If stopped date is BEFORE the display date, don't show.
+       // E.g. Stopped Today (noon). Display Date = Tomorrow. Don't show.
+       // Display Date = Yesterday. Show.
+       const stop = new Date(med.stoppedDate);
+       stop.setHours(0,0,0,0);
+       const current = new Date(displayDate);
+       current.setHours(0,0,0,0);
+       
+       if (current > stop) return false;
+    }
+
+    // 2. Check if specific dose skipped
+    const dateKey = displayDate.toDateString();
+    if (med.skippedDates && med.skippedDates[dateKey]) return false;
+
+    // 3. Frequency Check
+    if (med.frequency === 'Daily') return true;
+    
+    if (med.frequency === 'Every other day') {
+      const startDate = new Date(med.startDate); 
+      const start = new Date(startDate.setHours(0,0,0,0));
+      const current = new Date(displayDate.getTime());
+      current.setHours(0,0,0,0);
+      
+      const diffTime = Math.abs(current - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      
+      return diffDays % 2 === 0;
+    }
+    return true;
+  });
+
+  const sortedMeds = [...filteredMedications].sort((a, b) => a.triggerHour - b.triggerHour);
+  const isToday = isSameDay(displayDate, simTime);
+  const isPast = displayDate < new Date(simTime.toDateString());
+
+  return (
+    <div className="flex flex-col h-full bg-slate-50 relative">
+      {/* Header with Clock */}
+      <div className="bg-white px-6 pt-12 pb-4 shadow-sm z-10 space-y-4">
+        <div className="flex justify-between items-start max-w-md mx-auto">
+          <div>
+            <p className="text-slate-500 font-medium">Good Morning,</p>
+            <h1 className={`${headingSize} font-bold text-slate-900 leading-tight`}>{userProfile.name || 'User'}</h1>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setView('add-med')}
+              className="p-3 bg-blue-600 rounded-full text-white hover:bg-blue-700 transition shadow-md"
+            >
+              <Plus size={24} />
+            </button>
+            <button 
+              onClick={() => setView('settings')}
+              className="p-3 bg-slate-100 rounded-full text-slate-600 hover:bg-slate-200 transition"
+            >
+              <Settings size={24} />
+            </button>
+          </div>
+        </div>
+
+        {/* Calendar Strip */}
+        <div className="flex justify-between items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+           {calendarDays.map((date, idx) => {
+             const isSelected = isSameDay(date, displayDate);
+             return (
+               <button 
+                 key={idx}
+                 onClick={() => setSelectedDate(date)}
+                 className={`flex flex-col items-center justify-center w-14 h-16 rounded-xl transition-all ${isSelected ? 'bg-blue-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200'}`}
+               >
+                 <span className="text-xs font-bold uppercase">{getDayName(date, simTime)}</span>
+                 <span className={`text-lg font-bold ${isSelected ? 'text-white' : 'text-slate-800'}`}>{date.getDate()}</span>
+               </button>
+             )
+           })}
+        </div>
+        
+        {/* Simulated Clock Display */}
+        {medications.length > 0 && isToday && (
+          <div className="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between shadow-inner">
+             <div className="flex items-center gap-2">
+                <Clock size={18} className="text-blue-400" />
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Simulated Time</span>
+             </div>
+             <span className="font-mono text-xl font-bold text-blue-300">
+               {simTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+             </span>
+          </div>
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-md mx-auto space-y-6">
+          
+          {medications.length === 0 ? (
+            /* Empty State */
+            <div className="flex flex-col items-center justify-center py-12 text-center space-y-4 opacity-60">
+              <div className="bg-slate-200 p-6 rounded-full">
+                <Activity size={48} className="text-slate-400" />
+              </div>
+              <p className={`${textSize} text-slate-500 max-w-xs`}>No medications scheduled. Scan your first bottle to get started.</p>
+            </div>
+          ) : (
+            /* Active Schedule */
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+               {sortedMeds.length === 0 ? (
+                  <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-slate-300">
+                     <CalendarIcon size={40} className="mx-auto text-slate-300 mb-2"/>
+                     <p className="text-slate-500">No medications scheduled for {displayDate.toLocaleDateString()}.</p>
+                  </div>
+               ) : (
+                <div className="bg-emerald-50 p-6 rounded-2xl border border-emerald-100 mb-6">
+                  <div className="flex items-center gap-2 mb-4">
+                      <Clock className="text-emerald-700" size={20} />
+                      <h3 className="font-bold text-emerald-800 text-lg uppercase tracking-wide">
+                        {isToday ? "Today's Schedule" : `${displayDate.toLocaleDateString(undefined, {weekday: 'long'})} Schedule`}
+                      </h3>
+                  </div>
+                  
+                  {sortedMeds.map((med, idx) => {
+                    // Determine Status Logic: Check history if past/current, or main status if today
+                    const dateKey = displayDate.toDateString();
+                    let effectiveStatus = 'pending';
+                    
+                    if (isPast) {
+                        effectiveStatus = med.history[dateKey] || 'pending'; 
+                    } else if (isToday) {
+                        effectiveStatus = med.status;
+                    } else {
+                        effectiveStatus = 'pending';
+                    }
+
+                    return (
+                    <div key={idx} className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm mb-3 relative overflow-hidden">
+                      {/* Trash Button - Less Prominent in Corner */}
+                      <button 
+                        onClick={() => setMedToDelete(med)}
+                        className="absolute top-2 right-2 p-2 text-slate-300 hover:text-red-500 transition rounded-full hover:bg-red-50"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+
+                      <div className="flex items-start gap-4 mb-4 pr-8">
+                          <div className={`h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 transition-colors duration-500 ${getStatusColor(effectiveStatus, !isToday && !isPast)}`}>
+                              {getStatusIcon(effectiveStatus, !isToday && !isPast)}
+                          </div>
+                          <div>
+                            <p className="font-bold text-xl text-slate-900">{med.name}</p>
+                            <div className="flex flex-col">
+                              <span className="text-slate-500 font-medium">{med.time} • {med.dosage}</span>
+                              {med.frequency !== 'Daily' && (
+                                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full w-fit mt-1">{med.frequency}</span>
+                              )}
+                            </div>
+                            {isToday && effectiveStatus === 'missed' && <p className="text-xs font-bold text-red-500 uppercase mt-1">Alert Sent</p>}
+                          </div>
+                      </div>
+                      
+                      {/* Mark as Taken Button - Prominent */}
+                      {(isToday || isPast) && effectiveStatus !== 'taken' && (
+                        <button 
+                            onClick={() => handleMarkTaken(med.id)}
+                            className="w-full py-3 bg-blue-600 text-white text-lg font-bold rounded-xl shadow-md hover:bg-blue-700 active:bg-blue-800 transition transform active:scale-[0.98]"
+                        >
+                            Mark as Taken
+                        </button>
+                      )}
+                      
+                      {/* Already Taken Indicator */}
+                      {effectiveStatus === 'taken' && (
+                          <div className="w-full py-2 bg-green-50 text-green-700 font-bold rounded-xl text-center border border-green-100">
+                              Taken
+                          </div>
+                      )}
+                    </div>
+                  )})}
+                </div>
+               )}
+               
+               {isToday && (
+                 <p className="text-xs text-center text-slate-400 mt-8">
+                   Clock runs 7AM - 7PM. At 7PM it auto-advances to the next day.
+                 </p>
+               )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Floating Action Button (Only show if empty list) */}
+      {medications.length === 0 && (
+        <div className="p-6 bg-white border-t border-slate-100 z-10">
+            <button 
+            onClick={() => setView('add-med')}
+            className={`w-full bg-blue-600 text-white font-bold rounded-xl shadow-xl shadow-blue-200 flex items-center justify-center gap-3 ${buttonSize} hover:bg-blue-700 transition`}
+            >
+            <Camera size={28} />
+            Scan Prescription
+            </button>
+        </div>
+      )}
+
+      {/* DELETION CONFIRMATION MODAL */}
+      {medToDelete && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <div className="flex items-center gap-3 text-red-600">
+               <div className="bg-red-100 p-2 rounded-full"><Trash2 size={24} /></div>
+               <h3 className="text-xl font-bold text-slate-900">Remove Medicine?</h3>
+            </div>
+            <p className="text-slate-600">You are modifying <span className="font-bold">{medToDelete.name}</span> ({medToDelete.time}). What would you like to do?</p>
+
+            <div className="space-y-3 pt-2">
+              <button
+                onClick={handleDeleteSingle}
+                className="w-full p-4 bg-orange-50 border border-orange-100 text-orange-800 font-bold rounded-xl hover:bg-orange-100 transition text-left flex flex-col"
+              >
+                <span>Remove only this dose</span>
+                <span className="text-xs font-normal opacity-80 mt-1">Just hides this dose from today's schedule.</span>
+              </button>
+
+              <button
+                onClick={handleDeleteAll}
+                className="w-full p-4 bg-red-50 border border-red-100 text-red-800 font-bold rounded-xl hover:bg-red-100 transition text-left flex flex-col"
+              >
+                <span>Stop taking this medicine</span>
+                <span className="text-xs font-normal opacity-80 mt-1">Removes from future schedules (History kept).</span>
+              </button>
+
+              <button
+                onClick={() => setMedToDelete(null)}
+                className="w-full p-4 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition"
+              >
+                Cancel (Keep it)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 5. ADD MEDICATION
+const AddMedication = ({ medications, setMedications, setView, speak, buttonSize, headingSize }) => {
+  const [step, setStep] = useState('scan'); 
+  const [scanning, setScanning] = useState(false);
+  const [formData, setFormData] = useState(null);
+
+  const handleScan = () => {
+    setScanning(true);
+    // Mock AI Latency
+    setTimeout(() => {
+      setScanning(false);
+      
+      let scanned = {};
+      const today = new Date();
+      
+      if (medications.length === 0) {
+        // 1st: Amoxicillin (Daily)
+        scanned = {
+          id: Date.now(),
+          name: 'Amoxicillin',
+          dosage: '500mg',
+          time: '8:00 AM',
+          triggerHour: 8,
+          frequency: 'Daily',
+          duration: '10 days',
+          status: 'pending',
+          history: {}, 
+          skippedDates: {},
+          stoppedDate: null,
+          startDate: today
+        };
+        speak("Label found. Amoxicillin.");
+      } else if (medications.length === 1) {
+        // 2nd: Vitamin D (Daily)
+        scanned = {
+          id: Date.now(),
+          name: 'Vitamin D',
+          dosage: '1000 IU',
+          time: '11:00 AM',
+          triggerHour: 11,
+          frequency: 'Daily',
+          duration: '30 days',
+          status: 'pending',
+          history: {},
+          skippedDates: {},
+          stoppedDate: null,
+          startDate: today
+        };
+        speak("Label found. Vitamin D.");
+      } else if (medications.length <= 3) {
+        // 3rd: Iron (Every other day, Twice Daily)
+        scanned = {
+          id: Date.now(),
+          name: 'Iron Supplement',
+          dosage: '65mg',
+          time: '9:00 AM & 6:00 PM', // Display purpose
+          frequency: 'Every other day',
+          duration: '60 days',
+          startDate: today,
+          
+          isTwiceDaily: true,
+          times: [
+            { time: '9:00 AM', hour: 9 },
+            { time: '6:00 PM', hour: 18 } 
+          ]
+        };
+        speak("Label found. Iron Supplement, twice daily.");
+      } else {
+        // 4th: Lisinopril (Daily, 9 AM - overlaps with Iron)
+        scanned = {
+          id: Date.now(),
+          name: 'Lisinopril',
+          dosage: '10mg',
+          time: '9:00 AM',
+          triggerHour: 9,
+          frequency: 'Daily',
+          duration: '90 days',
+          status: 'pending',
+          history: {},
+          skippedDates: {},
+          stoppedDate: null,
+          startDate: today
+        };
+        speak("Label found. Lisinopril.");
+      }
+      
+      setFormData(scanned);
+      setStep('review');
+    }, 2500); 
+  };
+
+  const handleSave = () => {
+    if (formData.isTwiceDaily) {
+      const entry1 = {
+        ...formData,
+        id: Date.now(),
+        time: formData.times[0].time,
+        triggerHour: formData.times[0].hour,
+        status: 'pending',
+        history: {},
+        skippedDates: {},
+        stoppedDate: null
+      };
+      const entry2 = {
+        ...formData,
+        id: Date.now() + 1,
+        time: formData.times[1].time,
+        triggerHour: formData.times[1].hour,
+        status: 'pending',
+        history: {},
+        skippedDates: {},
+        stoppedDate: null
+      };
+      setMedications([...medications, entry1, entry2]);
+    } else {
+      setMedications([...medications, formData]);
+    }
+    setStep('success');
+  };
+
+  const resetFlow = () => {
+    setStep('scan');
+    setFormData(null);
+  };
+
+  if (step === 'scan') {
+    return (
+      <div className="flex flex-col h-full bg-slate-900 text-white relative">
+        <div className="absolute top-0 w-full p-4 flex justify-between items-center z-20">
+            <button onClick={() => setView('dashboard')} className="p-2 bg-black/40 rounded-full backdrop-blur-md">
+                <X size={24} />
+            </button>
+            <span className="font-bold text-lg">Scan Bottle</span>
+            <div className="w-10"></div> 
+        </div>
+
+        <div className="flex-1 flex flex-col items-center justify-center relative">
+          {scanning ? (
+            <div className="absolute inset-0 bg-black flex flex-col items-center justify-center">
+                <div className="w-64 h-64 border-2 border-blue-500 rounded-2xl relative animate-pulse flex items-center justify-center">
+                  <div className="absolute w-full h-1 bg-blue-500 top-0 animate-[scan_2s_infinite]"></div>
+                  <span className="text-blue-400 font-mono font-bold bg-black/50 px-2 rounded">AI PROCESSING...</span>
+                </div>
+                <p className="mt-8 text-blue-300 font-medium">Extracting Dosage & Times...</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center w-full h-full justify-center bg-slate-800">
+                <div className="w-64 h-64 border-2 border-white/30 rounded-2xl mb-8 flex items-center justify-center">
+                  <p className="text-white/50 text-sm">Align Label Here</p>
+                </div>
+                <button 
+                  onClick={handleScan}
+                  className="h-20 w-20 bg-white rounded-full border-4 border-slate-300 flex items-center justify-center shadow-2xl hover:scale-105 transition"
+                >
+                  <div className="h-16 w-16 bg-white border-2 border-black rounded-full"></div>
+                </button>
+                <p className="mt-6 text-white/60 font-medium">Tap to capture</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'review') {
+    return (
+      <div className="flex flex-col h-full bg-slate-50 text-slate-900 animate-in slide-in-from-bottom duration-500">
+        <div className="p-6 pt-12 flex-1 overflow-y-auto">
+          <div className="bg-green-100 p-4 rounded-xl border border-green-200 flex items-center gap-3 mb-6">
+              <CheckCircle className="text-green-700" size={28} />
+              <div>
+                  <h3 className="font-bold text-green-900">Label Scanned</h3>
+                  <p className="text-green-800 text-sm">Details extracted automatically.</p>
+              </div>
+          </div>
+
+          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+              <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Medication Name</label>
+                  <p className="text-3xl font-bold text-slate-900">{formData.name}</p>
+              </div>
+              <div className="flex gap-4">
+                  <div className="flex-1 space-y-1">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dosage</label>
+                      <p className="text-xl font-bold text-slate-800">{formData.dosage}</p>
+                  </div>
+                  <div className="flex-1 space-y-1">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Duration</label>
+                      <p className="text-xl font-bold text-slate-800">{formData.duration}</p>
+                  </div>
+              </div>
+              
+              <div className="flex gap-4">
+                  <div className="flex-1 space-y-1">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Time</label>
+                      <p className="text-xl font-bold text-slate-800">{formData.time}</p>
+                  </div>
+                   <div className="flex-1 space-y-1">
+                      <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Frequency</label>
+                      <p className="text-xl font-bold text-slate-800">{formData.frequency}</p>
+                  </div>
+              </div>
+
+              <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                  <label className="text-xs font-bold text-blue-500 uppercase tracking-wider mb-1 block">AI Simplified Instructions</label>
+                  <p className="text-lg font-medium text-blue-900 leading-relaxed">
+                    "Take {formData.name} {formData.frequency.toLowerCase()} at {formData.time}."
+                  </p>
+              </div>
+          </div>
+        </div>
+        
+        <div className="p-6 bg-white border-t border-slate-100 space-y-3">
+          <button 
+            onClick={handleSave}
+            className={`w-full bg-blue-600 text-white font-bold rounded-xl shadow-lg ${buttonSize}`}
+          >
+            Add to Schedule
+          </button>
+          
+          <button 
+            onClick={resetFlow}
+            className={`w-full bg-slate-100 text-slate-600 font-bold rounded-xl ${buttonSize}`}
+          >
+            Cancel / Retake
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'success') {
+    return (
+      <div className="flex flex-col h-full bg-slate-50 text-slate-900 animate-in zoom-in duration-300 items-center justify-center p-6 text-center">
+        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center text-green-600 mb-6 shadow-inner">
+           <CheckCircle size={48} />
+        </div>
+        <h2 className={`${headingSize} font-bold text-slate-900 mb-2`}>Medication Added!</h2>
+        <p className="text-slate-600 mb-8 max-w-xs">{formData.name} has been added to your schedule.</p>
+
+        <div className="w-full space-y-4 max-w-sm">
+           <button 
+              onClick={resetFlow}
+              className={`w-full bg-white border-2 border-blue-600 text-blue-700 font-bold rounded-xl ${buttonSize} flex items-center justify-center gap-2`}
+            >
+              <Plus size={24} /> Add Another
+           </button>
+
+           <button 
+              onClick={() => setView('dashboard')}
+              className={`w-full bg-blue-600 text-white font-bold rounded-xl shadow-lg ${buttonSize}`}
+            >
+              Finish & View Schedule
+           </button>
+        </div>
+      </div>
+    );
+  }
+};
+
+// 6. AUTOMATED ALERT OVERLAY
+const ActiveAlertOverlay = ({ activeAlertMed, setActiveAlertMed, updateMedStatus, caregiver, speak, userProfile }) => {
+  const [stage, setStage] = useState('banner1'); 
+
+  useEffect(() => {
+    let timer;
+    if (stage === 'banner1') {
+      timer = setTimeout(() => {
+        setStage('banner2');
+        speak(`Reminder. You have not confirmed your ${activeAlertMed.name}. Please take it now.`);
+      }, 10000); 
+    } else if (stage === 'banner2') {
+      timer = setTimeout(() => {
+        setStage('caregiver');
+        speak(`Alerting ${caregiver.name || 'Caregiver'} that you may have missed a dose.`);
+        updateMedStatus(activeAlertMed.id, 'missed'); 
+      }, 10000); 
+    }
+    return () => clearTimeout(timer);
+  }, [stage, activeAlertMed]);
+
+  const handleTaken = () => {
+    speak("Great job. Dose confirmed.");
+    updateMedStatus(activeAlertMed.id, 'taken');
+    setActiveAlertMed(null); 
+  };
+
+  const handleDismiss = () => {
+    setActiveAlertMed(null); 
+  };
+
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300">
+        {/* STATE 1: GENTLE REMINDER */}
+        {stage === 'banner1' && (
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border-t-8 border-blue-500 animate-in zoom-in duration-300">
+            <div className="bg-blue-50 p-6 flex flex-col items-center text-center gap-2 border-b border-blue-100">
+              <div className="p-3 bg-blue-100 text-blue-600 rounded-full mb-2">
+                  <Clock size={32} />
+              </div>
+              <span className="font-bold text-xl text-blue-900">Medication Time</span>
+              <p className="text-blue-700">{activeAlertMed.time} Scheduled Dose</p>
+            </div>
+            <div className="p-8 text-center space-y-6">
+              <div>
+                  <p className="text-3xl font-bold text-slate-800 mb-1">{activeAlertMed.name}</p>
+                  <p className="text-xl text-slate-500">Take 1 pill</p>
+              </div>
+              <button 
+                  onClick={handleTaken} 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl text-xl font-bold shadow-lg shadow-blue-200 transition-all transform active:scale-95"
+              >
+                Mark as Taken
+              </button>
+            </div>
+            <div className="bg-slate-50 p-2 text-center text-xs text-slate-400">
+                Gentle Reminder...
+            </div>
+          </div>
+        )}
+
+        {/* STATE 2: URGENT REMINDER */}
+        {stage === 'banner2' && (
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden border-4 border-orange-500 animate-[pulse_2s_infinite]">
+            <div className="bg-orange-500 p-4 text-white flex items-center justify-center gap-3">
+              <AlertTriangle size={28} className="animate-bounce" />
+              <span className="font-bold text-xl uppercase tracking-wider">Second Reminder</span>
+            </div>
+            <div className="p-8 text-center space-y-6">
+              <div>
+                  <p className="text-3xl font-bold text-slate-900 mb-2">{activeAlertMed.name}</p>
+                  <p className="text-lg text-orange-600 font-bold bg-orange-50 p-3 rounded-lg border border-orange-100">
+                      Please confirm you took this.
+                  </p>
+              </div>
+              <button 
+                  onClick={handleTaken} 
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white py-4 rounded-2xl text-xl font-bold shadow-lg transition-all transform active:scale-95"
+              >
+                Mark as Taken
+              </button>
+            </div>
+            <div className="bg-orange-50 p-2 text-center text-xs text-orange-400 font-bold">
+                NOTIFYING CAREGIVER IN 10s...
+            </div>
+          </div>
+        )}
+
+         {/* STATE 3: CAREGIVER ALERT */}
+         {stage === 'caregiver' && (
+          <div className="w-full max-w-md bg-red-50 rounded-3xl shadow-2xl overflow-hidden border-2 border-red-200 animate-in slide-in-from-top duration-500">
+            <div className="p-8 text-center space-y-6">
+              <div className="w-24 h-24 bg-red-100 rounded-full mx-auto flex items-center justify-center text-red-600 mb-2 shadow-inner">
+                <MessageSquare size={48} />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-red-900 mb-2">Caregiver Notified</h3>
+                <p className="text-lg text-red-800 leading-relaxed">
+                  We sent a text to <strong>{caregiver.name || 'Emergency Contact'}</strong> just to be safe.
+                </p>
+              </div>
+              
+              <div className="bg-white p-4 rounded-xl border border-red-100 text-left shadow-sm relative overflow-hidden">
+                <div className="absolute left-0 top-0 bottom-0 w-1 bg-red-400"></div>
+                <p className="text-xs text-slate-400 font-bold mb-1 uppercase">SMS Preview</p>
+                <p className="text-sm text-slate-600 font-mono">
+                  "Alert: {userProfile.name} missed their {activeAlertMed.name} dose. Please check on them."
+                </p>
+              </div>
+
+              <button 
+                  onClick={handleDismiss} 
+                  className="text-slate-500 font-medium underline text-lg hover:text-slate-700"
+              >
+                Okay, Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+    </div>
+  );
+};
+
+
+// --- MAIN APP COMPONENT ---
+export default function App() {
+  const [view, setView] = useState('onboarding'); 
+  const [userProfile, setUserProfile] = useState({ name: '', ageRange: '', audioPref: true, largeText: true });
+  const [caregiver, setCaregiver] = useState({ name: '', phone: '', relation: '' });
+  const [medications, setMedications] = useState([]);
+  
+  // Clock & Alert Logic
+  const [simTime, setSimTime] = useState(new Date(new Date().setHours(7, 0, 0, 0)));
+  const [activeAlertMed, setActiveAlertMed] = useState(null); 
+
+  const updateMedStatus = (medId, status) => {
+    const dateKey = simTime.toDateString(); 
+    setMedications(prev => prev.map(m => {
+        if (m.id === medId) {
+            return { 
+                ...m, 
+                status: status, 
+                history: { ...m.history, [dateKey]: status }
+            };
+        }
+        return m;
+    }));
+  };
+  
+  const textSize = userProfile.largeText ? 'text-lg' : 'text-base';
+  const headingSize = userProfile.largeText ? 'text-3xl' : 'text-2xl';
+  const buttonSize = userProfile.largeText ? 'py-4 text-xl' : 'py-3 text-lg';
+
+  const speak = (text) => {
+    if (userProfile.audioPref && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel(); 
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9; 
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  // --- CLOCK TICKER ---
+  useEffect(() => {
+    if (view === 'dashboard' && medications.length > 0 && !activeAlertMed) {
+      const interval = setInterval(() => {
+        setSimTime(prevTime => {
+          const nextTime = new Date(prevTime.getTime() + 2 * 60000); // Add 2 simulated minutes
+          
+          // DAY ROLLOVER LOGIC: If hour >= 19 (7 PM), jump to next day 7 AM
+          if (nextTime.getHours() >= 19) {
+             const tomorrow = new Date(nextTime);
+             tomorrow.setDate(tomorrow.getDate() + 1);
+             tomorrow.setHours(7, 0, 0, 0);
+             
+             // SAVE YESTERDAY'S STATUS TO HISTORY BEFORE RESETTING
+             const yesterdayKey = nextTime.toDateString();
+             setMedications(currentMeds => currentMeds.map(m => {
+                 // If status was 'pending' when day rolled over, mark as 'missed' in history
+                 const finalStatus = m.status === 'pending' ? 'missed' : m.status;
+                 return {
+                     ...m,
+                     status: 'pending',
+                     history: { ...m.history, [yesterdayKey]: finalStatus }
+                 };
+             }));
+             
+             return tomorrow;
+          }
+          return nextTime;
+        });
+      }, 1000); 
+      return () => clearInterval(interval);
+    }
+  }, [view, medications.length, activeAlertMed]);
+
+
+  // --- TRIGGER CHECKER ---
+  useEffect(() => {
+    if (view === 'dashboard' && medications.length > 0 && !activeAlertMed) {
+       const currentHour = simTime.getHours();
+       const currentMinute = simTime.getMinutes();
+       
+       const medToTrigger = medications.find(m => {
+          // Check stop date first
+          if (m.stoppedDate) {
+             const stop = new Date(m.stoppedDate);
+             if (simTime > stop) return false;
+          }
+          
+          // Check skipped dates
+          const dateKey = simTime.toDateString();
+          if (m.skippedDates && m.skippedDates[dateKey]) return false;
+
+          const isTime = m.status === 'pending' && 
+                         m.triggerHour === currentHour && 
+                         currentMinute >= 0 && currentMinute < 15;
+                         
+          if (!isTime) return false;
+          
+          if (m.frequency === 'Daily') return true;
+          if (m.frequency === 'Every other day') {
+             const start = new Date(new Date(m.startDate).setHours(0,0,0,0));
+             const curr = new Date(simTime);
+             curr.setHours(0,0,0,0);
+             const diff = Math.ceil(Math.abs(curr - start) / (1000 * 60 * 60 * 24));
+             return diff % 2 === 0;
+          }
+          return true;
+       });
+
+       if (medToTrigger) {
+         setActiveAlertMed(medToTrigger);
+         speak(`It is time to take your ${medToTrigger.name}.`);
+       }
+    }
+  }, [simTime, medications, view, activeAlertMed]);
+
+  return (
+    <div className="h-screen w-full bg-slate-100 flex items-center justify-center font-sans antialiased text-slate-900">
+      <div className="w-full h-full max-w-[480px] bg-white sm:h-[850px] sm:rounded-3xl sm:shadow-2xl overflow-hidden relative border border-slate-200">
+        
+        {view === 'onboarding' && (
+          <Onboarding 
+            userProfile={userProfile} setUserProfile={setUserProfile} 
+            setView={setView} speak={speak}
+            headingSize={headingSize} textSize={textSize} buttonSize={buttonSize}
+          />
+        )}
+        {view === 'caregiver' && (
+          <CaregiverSetup 
+            caregiver={caregiver} setCaregiver={setCaregiver} 
+            setView={setView} 
+            headingSize={headingSize} textSize={textSize} buttonSize={buttonSize}
+          />
+        )}
+        {view === 'dashboard' && (
+          <Dashboard 
+            userProfile={userProfile} medications={medications} setMedications={setMedications}
+            setView={setView} simTime={simTime}
+            headingSize={headingSize} textSize={textSize} buttonSize={buttonSize}
+          />
+        )}
+        {view === 'settings' && (
+          <SettingsView 
+            userProfile={userProfile} setUserProfile={setUserProfile} 
+            caregiver={caregiver} setCaregiver={setCaregiver}
+            setView={setView} 
+            headingSize={headingSize} textSize={textSize} buttonSize={buttonSize}
+          />
+        )}
+        {view === 'add-med' && (
+          <AddMedication 
+            medications={medications} setMedications={setMedications} 
+            setView={setView} speak={speak}
+            headingSize={headingSize} buttonSize={buttonSize}
+          />
+        )}
+
+        {activeAlertMed && (
+          <ActiveAlertOverlay 
+             activeAlertMed={activeAlertMed} 
+             setActiveAlertMed={setActiveAlertMed}
+             updateMedStatus={updateMedStatus}
+             caregiver={caregiver}
+             speak={speak}
+             userProfile={userProfile}
+          />
+        )}
+
+      </div>
+    </div>
+  );
+}
